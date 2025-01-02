@@ -4,16 +4,24 @@ from procurement.procurement import wcapi
 from it_systems.halo_service import get_halo_token, get_halo_agent_details, get_client_details
 import requests
 from flask_cors import CORS
+from flask_caching import Cache
 
 app = Flask(__name__)
 CORS(app)
 
+
+# Cache Configuration
+app.config['CACHE_TYPE'] = 'SimpleCache' # Would use something like RedisCache or MemcachedCache in production
+app.config['CACHE_DEFAULT_TIMEOUT'] = 300 # Cache timeout in seconds (5 minutes)
+cache = Cache(app)
+
 # Fetching orders from WooCommerce 
 @app.route('/api/orders/techary', methods=['GET'])
+@cache.cached()
 def get_orders():
     """Fetching order details from the Techary Procurement Portal"""
     try:
-        response = wcapi.get("orders")
+        response = wcapi.get("orders", params={"per_page": 100})
         if response.status_code == 200:
             orders = response.json()
             
@@ -45,8 +53,9 @@ def get_orders():
                     order_info["line_items"].append(line_item_info)
                 order_data.append(order_info)
                 
+            print(len(orders))
             # Returning the filtered mapped orders  
-            return jsonify({"orders": order_data}), 200
+            return jsonify({"orders": order_data, "order_number": len(order_info) }), 200
         else:
             return jsonify({"error": "Failed to fetch orders", "details": response.text}), response.status_code
     except Exception as e:
@@ -85,6 +94,7 @@ def get_products():
 
 # Fetching Techary tickets from HaloPSA
 @app.route('/api/tickets/<client_name>/<ticket_category>', methods=['GET'])
+@cache.cached()
 def get_tickets_for_techary(client_name, ticket_category):
     """Fetching tickets from HaloPSA using the access token"""
     
@@ -140,7 +150,9 @@ def get_tickets_for_techary(client_name, ticket_category):
                 }
                 ticket_data.append(ticket_info)
             
-            return jsonify({"tickets": ticket_data}), 200
+            
+            print(len(ticket_list))
+            return jsonify({"tickets": ticket_data, "total_open_tickets": len(ticket_list)}), 200
         else:
             return jsonify({"error": "Failed to fetch tickets", "details": response.text}), response.status_code
     except Exception as e:
