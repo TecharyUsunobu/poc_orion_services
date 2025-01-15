@@ -67,7 +67,7 @@ class ManagedServices:
         if not access_token:
             return {"error": "Failed to fetch access token"}
         
-        agent_url = f"{self.base_url}/api/Agent/{agent_id}"
+        agent_url = f"{self.base_url}Agent/{agent_id}"
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
@@ -76,7 +76,20 @@ class ManagedServices:
         try: 
             response = requests.get(agent_url, headers=headers)
             if response.status_code == 200:
-                return response.json()
+                agent_data = response.json()
+                # Extract and format specific agent details
+                agent_info = {
+                    "id": agent_data.get("id"),
+                    "name": agent_data.get("name"),
+                    "job_title": agent_data.get("jobtitle"),
+                    "email": agent_data.get("email"),
+                    # "online_status": agent_data.get("lastonline"),
+                    # "teams": [team.get("team_name") for team in agent_data.get("teams", [])],
+                    # "photo_path": agent_data.get("agentphotopath"),
+                    # "initials": agent_data.get("initials")
+                }
+
+                return agent_info  # Return formatted agent information
             else:
                 return {"error": f"Failed to fetch agent details: {response.text}"}
         except Exception as e:
@@ -112,6 +125,8 @@ class ManagedServices:
             if response.status_code == 200:
                 ticket_response = response.json()
                 ticket_list = ticket_response.get("tickets", [])
+                for ticket in ticket_list:
+                    ticket["assigned_agent"] = self.get_halo_agent_details(ticket.get('agent_id'))
                 
                 return {"tickets": ticket_list, "total_open_tickets": len(ticket_list)}
             else:
